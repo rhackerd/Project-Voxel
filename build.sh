@@ -1,1 +1,2 @@
-cmake --build build/
+meson compile -C build
+./build/app
