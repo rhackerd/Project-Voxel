@@ -84,3 +84,15 @@ struct Logger {
         static N::Log::Logger logger{name}; \
         return logger; \
     }
+
+namespace N::Log {
+    inline Logger& globalLogger() {
+        static Logger l{"Global"};
+        return l;
+    }
+}
+
+#define LOG_INFO(msg, ...)  N::Log::globalLogger().info(::fmt::format(msg,  ##__VA_ARGS__), __FILE__, __LINE__)
+#define LOG_WARN(msg, ...)  N::Log::globalLogger().warn(::fmt::format(msg,  ##__VA_ARGS__), __FILE__, __LINE__)
+#define LOG_ERROR(msg, ...) N::Log::globalLogger().error(::fmt::format(msg, ##__VA_ARGS__), __FILE__, __LINE__)
+#define LOG_DEBUG(msg, ...) N::Log::globalLogger().debug(::fmt::format(msg, ##__VA_ARGS__), __FILE__, __LINE__)

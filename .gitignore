@@ -1,0 +1,50 @@
+# Meson build directories
+build/
+builddir/
+.meson/
+run/
+
+# Meson subproject downloaded sources (keep wrap files)
+subprojects/packagecache/
+subprojects/fmt-*/
+subprojects/glm-*/
+subprojects/SDL3-*/
+
+# Compiled shaders
+*.spv
+
+# Slang intermediate
+*.slang-generated
+*.slang.spv
+
+# GLSL intermediate
+*.glsl.spv
+
+# cgltf / asset cache
+*.bin
+*.cache
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Compiled output
+*.o
+*.a
+*.so
+*.exe
+*.out
+
+# OS garbage
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Temp/debug dumps
+*.dump
+renderdoc/
+*.rdc
+compile_commands.json

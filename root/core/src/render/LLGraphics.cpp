@@ -126,111 +126,34 @@ namespace N::Graphics {
     void Graphics::InitPipelines() {
         // InitPTesting();
         InitPGeometry();
+        InitPLight();
     };
 
     void Graphics::InitPTesting() {
-        auto vert = LoadShader("rect", SDL_GPU_SHADERSTAGE_VERTEX, 0, 1, 0, 0);
-        auto frag = LoadShader("rect", SDL_GPU_SHADERSTAGE_FRAGMENT,0, 0, 0, 0);
-
-        // Setup attributes
-        SDL_GPUVertexAttribute attrs[3]{};
-        attrs[0].location = 0;
-        attrs[0].format   = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
-        attrs[0].offset   = offsetof(Vertex, x);
-
-        attrs[1].location = 1;
-        attrs[1].format   = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
-        attrs[1].offset   = offsetof(Vertex, nx);
-
-        attrs[2].location = 2;
-        attrs[2].format   = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
-        attrs[2].offset   = offsetof(Vertex, u);
-
-        SDL_GPUVertexBufferDescription vdesc{};
-        vdesc.slot = 0;
-        vdesc.pitch = sizeof(Vertex);
-        vdesc.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
-
-        SDL_GPUColorTargetDescription ctarget{};
-        ctarget.format = SDL_GetGPUSwapchainTextureFormat(m_device, m_window);
-
-        SDL_GPUGraphicsPipelineCreateInfo pipe_info{};
-        pipe_info.vertex_shader                                     = vert;
-        pipe_info.fragment_shader                                   = frag;
-        pipe_info.vertex_input_state.vertex_attributes             = attrs;
-        pipe_info.vertex_input_state.num_vertex_attributes         = 2;
-        pipe_info.vertex_input_state.vertex_buffer_descriptions    = &vdesc;
-        pipe_info.vertex_input_state.num_vertex_buffers            = 1;
-        pipe_info.primitive_type                                   = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
-        pipe_info.target_info.color_target_descriptions            = &ctarget;
-        pipe_info.target_info.num_color_targets                    = 1;
-
-        pipeline = SDL_CreateGPUGraphicsPipeline(m_device, &pipe_info);
-
-        SDL_ReleaseGPUShader(m_device, vert);
-        SDL_ReleaseGPUShader(m_device, frag);
-        
-        SDL_GPUBufferCreateInfo vbuf_info{};
-        vbuf_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
-        vbuf_info.size  = sizeof(rect);
-        m_vbuf = SDL_CreateGPUBuffer(m_device, &vbuf_info);
-
-        SDL_GPUBufferCreateInfo ibuf_info{};
-        ibuf_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
-        ibuf_info.size  = sizeof(indices);
-        m_ibuf = SDL_CreateGPUBuffer(m_device, &ibuf_info);
-
-
-        SDL_GPUTransferBufferCreateInfo tbuf_info{};
-        tbuf_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-        tbuf_info.size  = sizeof(rect) + sizeof(indices);
-        SDL_GPUTransferBuffer* tbuf = SDL_CreateGPUTransferBuffer(m_device, &tbuf_info);
-
-        void* map = SDL_MapGPUTransferBuffer(m_device, tbuf, false);
-        memcpy(map, rect, sizeof(rect));
-        memcpy((uint8_t*)map + sizeof(rect), indices, sizeof(indices));
-        SDL_UnmapGPUTransferBuffer(m_device, tbuf);
-
-        SDL_GPUCommandBuffer* upload_cmd = SDL_AcquireGPUCommandBuffer(m_device);
-        SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(upload_cmd);
-
-        SDL_GPUTransferBufferLocation src{};
-        SDL_GPUBufferRegion dst{};
-
-        src.transfer_buffer = tbuf;
-        src.offset = 0;
-        dst.buffer = m_vbuf;
-        dst.offset = 0;
-        dst.size   = sizeof(rect);
-        SDL_UploadToGPUBuffer(copy, &src, &dst, false);
-
-        src.offset = sizeof(rect);
-        dst.buffer = m_ibuf;
-        dst.size   = sizeof(indices);
-        SDL_UploadToGPUBuffer(copy, &src, &dst, false);
-
-        SDL_EndGPUCopyPass(copy);
-        SDL_SubmitGPUCommandBuffer(upload_cmd);
-        SDL_ReleaseGPUTransferBuffer(m_device, tbuf);
+        // Just removed
     }
 
     void Graphics::InitPGeometry() {
-        auto vert = LoadShader("g", SDL_GPU_SHADERSTAGE_VERTEX, 0, 1, 0, 0);
-        auto frag = LoadShader("g", SDL_GPU_SHADERSTAGE_FRAGMENT,0, 0, 0, 0);
+        auto vert = LoadShader("g", SDL_GPU_SHADERSTAGE_VERTEX, 0, 2, 0, 0);
+        auto frag = LoadShader("g", SDL_GPU_SHADERSTAGE_FRAGMENT,2, 0, 0, 0);
 
-        // Setup attributes
-        SDL_GPUVertexAttribute attrs[3]{};
+        SDL_GPUVertexAttribute attrs[4]{};
+
         attrs[0].location = 0;
         attrs[0].format   = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
-        attrs[0].offset   = offsetof(Vertex, x);
+        attrs[0].offset   = offsetof(Vertex, position);
 
         attrs[1].location = 1;
         attrs[1].format   = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
-        attrs[1].offset   = offsetof(Vertex, nx);
+        attrs[1].offset   = offsetof(Vertex, normal);
 
         attrs[2].location = 2;
-        attrs[2].format   = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
-        attrs[2].offset   = offsetof(Vertex, u);
+        attrs[2].format   = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
+        attrs[2].offset   = offsetof(Vertex, tangent);
+
+        attrs[3].location = 3;
+        attrs[3].format   = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
+        attrs[3].offset   = offsetof(Vertex, uv);
 
         SDL_GPUVertexBufferDescription vdesc{};
         vdesc.slot = 0;
@@ -244,10 +167,13 @@ namespace N::Graphics {
         SDL_GPUGraphicsPipelineCreateInfo pipe_info{};
         pipe_info.vertex_shader                                     = vert;
         pipe_info.fragment_shader                                   = frag;
+
         pipe_info.vertex_input_state.vertex_attributes             = attrs;
-        pipe_info.vertex_input_state.num_vertex_attributes         = 3;
+        pipe_info.vertex_input_state.num_vertex_attributes         = 4;
+
         pipe_info.vertex_input_state.vertex_buffer_descriptions    = &vdesc;
         pipe_info.vertex_input_state.num_vertex_buffers            = 1;
+        
 
         pipe_info.primitive_type                                   = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
 
@@ -256,8 +182,18 @@ namespace N::Graphics {
         pipe_info.target_info.num_color_targets                    = 2;
 
         // Depth
+        pipe_info.depth_stencil_state.enable_depth_test            = true;
+        pipe_info.depth_stencil_state.enable_depth_write           = true;
+        pipe_info.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_GREATER;
+        // pipe_info.depth_stencil_state
+
         pipe_info.target_info.depth_stencil_format                 = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
         pipe_info.target_info.has_depth_stencil_target              = true;
+        
+        
+
+        pipe_info.rasterizer_state.cull_mode  = SDL_GPU_CULLMODE_BACK;
+        pipe_info.rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
 
         m_geometryPipeline = SDL_CreateGPUGraphicsPipeline(m_device, &pipe_info);
 
@@ -266,23 +202,23 @@ namespace N::Graphics {
         
         SDL_GPUBufferCreateInfo vbuf_info{};
         vbuf_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
-        vbuf_info.size  = sizeof(rect);
+        vbuf_info.size  = sizeof(box);
         m_vbuf = SDL_CreateGPUBuffer(m_device, &vbuf_info);
 
         SDL_GPUBufferCreateInfo ibuf_info{};
         ibuf_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
-        ibuf_info.size  = sizeof(indices);
+        ibuf_info.size  = sizeof(box_indices);
         m_ibuf = SDL_CreateGPUBuffer(m_device, &ibuf_info);
 
 
         SDL_GPUTransferBufferCreateInfo tbuf_info{};
         tbuf_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-        tbuf_info.size  = sizeof(rect) + sizeof(indices);
+        tbuf_info.size  = sizeof(box) + sizeof(box_indices);
         SDL_GPUTransferBuffer* tbuf = SDL_CreateGPUTransferBuffer(m_device, &tbuf_info);
 
         void* map = SDL_MapGPUTransferBuffer(m_device, tbuf, false);
-        memcpy(map, rect, sizeof(rect));
-        memcpy((uint8_t*)map + sizeof(rect), indices, sizeof(indices));
+        memcpy(map, box, sizeof(box));
+        memcpy((uint8_t*)map + sizeof(box), box_indices, sizeof(box_indices));
         SDL_UnmapGPUTransferBuffer(m_device, tbuf);
 
         SDL_GPUCommandBuffer* upload_cmd = SDL_AcquireGPUCommandBuffer(m_device);
@@ -295,18 +231,49 @@ namespace N::Graphics {
         src.offset = 0;
         dst.buffer = m_vbuf;
         dst.offset = 0;
-        dst.size   = sizeof(rect);
+        dst.size   = sizeof(box);
         SDL_UploadToGPUBuffer(copy, &src, &dst, false);
 
-        src.offset = sizeof(rect);
+        src.offset = sizeof(box);
         dst.buffer = m_ibuf;
-        dst.size   = sizeof(indices);
+        dst.size   = sizeof(box_indices);
         SDL_UploadToGPUBuffer(copy, &src, &dst, false);
 
         SDL_EndGPUCopyPass(copy);
         SDL_SubmitGPUCommandBuffer(upload_cmd);
         SDL_ReleaseGPUTransferBuffer(m_device, tbuf);
     };
+
+    void Graphics::InitPLight() {
+        auto vert = LoadShader("l", SDL_GPU_SHADERSTAGE_VERTEX, 0, 0, 0, 0);
+        auto frag = LoadShader("l", SDL_GPU_SHADERSTAGE_FRAGMENT, 2, 1, 0, 0);
+        //                                                samplers^ ^uniform
+
+        SDL_GPUColorTargetDescription ctarget{};
+        ctarget.format = SDL_GetGPUSwapchainTextureFormat(m_device, m_window);
+
+        SDL_GPUGraphicsPipelineCreateInfo pipe_info{};
+        pipe_info.vertex_shader   = vert;
+        pipe_info.fragment_shader = frag;
+        pipe_info.primitive_type  = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+
+        // No vertex attributes, no vertex buffers
+        pipe_info.vertex_input_state.num_vertex_attributes = 0;
+        pipe_info.vertex_input_state.num_vertex_buffers    = 0;
+
+        // One color target, no depth
+        pipe_info.target_info.color_target_descriptions = &ctarget;
+        pipe_info.target_info.num_color_targets         = 1;
+        pipe_info.target_info.has_depth_stencil_target  = false;
+
+        // No culling for fullscreen triangle
+        pipe_info.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+
+        m_lightPipeline = SDL_CreateGPUGraphicsPipeline(m_device, &pipe_info);
+
+        SDL_ReleaseGPUShader(m_device, vert);
+        SDL_ReleaseGPUShader(m_device, frag);
+    }
 
     void Graphics::UpdateCamera(float dt) {
         SDL_Event event;
@@ -324,8 +291,12 @@ namespace N::Graphics {
         dir.z = sin(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
         dir = glm::normalize(dir);
 
-        glm::vec3 pos   = m_camera.getPos();SDL_SetWindowRelativeMouseMode(m_window, true);
+        glm::vec3 pos   = m_camera.getPos();
         glm::vec3 right = glm::normalize(glm::cross(dir, {0, 1, 0}));
+
+        // On shift be much faster
+        float m_speed = 3.0f;
+        if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_LSHIFT]) m_speed = 10.0f;
 
         const bool* keys = SDL_GetKeyboardState(nullptr);
         if (keys[SDL_SCANCODE_W]) pos += dir   * m_speed * dt;
@@ -333,10 +304,10 @@ namespace N::Graphics {
         if (keys[SDL_SCANCODE_A]) pos -= right * m_speed * dt;
         if (keys[SDL_SCANCODE_D]) pos += right * m_speed * dt;
 
+
+
         if (keys[SDL_SCANCODE_ESCAPE]) {
             SDL_SetWindowRelativeMouseMode(m_window, false);
-        } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_LEFT) {
-            SDL_SetWindowRelativeMouseMode(m_window, true);
         }
 
         m_camera.setPos(pos);
@@ -345,6 +316,47 @@ namespace N::Graphics {
         int w, h;
         SDL_GetWindowSize(m_window, &w, &h);
         m_camera.update((float)w / (float)h);
+    }
+
+    Object* Graphics::AddObject() {
+        auto& ptr = m_objects.emplace_back(std::make_unique<Object>(m_device, m_samplers));
+        ptr->Init();
+        return ptr.get();
+    }
+
+    void Graphics::RemoveObject(Object* obj) {
+        std::erase_if(m_objects, [obj](const auto& ptr) {
+            return ptr.get() == obj;
+        });
+    }
+
+
+    void Graphics::InitSamplers() {
+        SDL_GPUSamplerCreateInfo info{};
+
+        // Linear repeat — for PBR textures
+        info.min_filter     = SDL_GPU_FILTER_LINEAR;
+        info.mag_filter     = SDL_GPU_FILTER_LINEAR;
+        info.mipmap_mode    = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+        info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+        info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+        m_samplers.linear   = SDL_CreateGPUSampler(m_device, &info);
+
+        // Nearest repeat — pixel art / UI
+        info.min_filter     = SDL_GPU_FILTER_NEAREST;
+        info.mag_filter     = SDL_GPU_FILTER_NEAREST;
+        info.mipmap_mode    = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST;
+        m_samplers.nearest  = SDL_CreateGPUSampler(m_device, &info);
+
+        // Shadow — clamp to border, for shadow maps later
+        info.min_filter     = SDL_GPU_FILTER_LINEAR;
+        info.mag_filter     = SDL_GPU_FILTER_LINEAR;
+        info.mipmap_mode    = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+        info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+        info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+        m_samplers.shadow   = SDL_CreateGPUSampler(m_device, &info);
+
+        LOG_INFO("Loaded samplers");
     }
     
 };

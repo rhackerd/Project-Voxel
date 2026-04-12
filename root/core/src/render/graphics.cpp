@@ -1,6 +1,7 @@
 #include "render/graphics.hpp"
 #include "log/log.hpp"
 #include "render/camera.hpp"
+#include "render/obj.hpp"
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_gpu.h>
@@ -8,11 +9,33 @@
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_properties.h>
 #include <SDL3/SDL_timer.h>
+#include <SDL3/SDL_version.h>
 #include <SDL3/SDL_video.h>
 #include <cstddef>
 
+struct VkPhysicalDeviceVulkan11Features {
+    uint32_t sType;
+    void* pNext;
+    uint32_t storageBuffer16BitAccess;
+    uint32_t uniformAndStorageBuffer16BitAccess;
+    uint32_t storagePushConstant16;
+    uint32_t storageInputOutput16;
+    uint32_t multiview;
+    uint32_t multiviewGeometryShader;
+    uint32_t multiviewTessellationShader;
+    uint32_t variablePointersStorageBuffer;
+    uint32_t variablePointers;
+    uint32_t protectedMemory;
+    uint32_t samplerYcbcrConversion;
+    uint32_t shaderDrawParameters;
+};
+
+#define VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES 49
+
 namespace N::Graphics {
     void Graphics::Init() {
+        // Print sdl3 version
+        NINFO("SDL3 Version: {}", SDL_GetVersion());
         if (!SDL_Init(SDL_INIT_VIDEO)) {
             NERROR("Failed to initiate SDL: {}", SDL_GetError());
             return;
@@ -30,6 +53,11 @@ namespace N::Graphics {
 
         SDL_GPUVulkanOptions vk_options{};
         vk_options.vulkan_api_version = (1 << 22) | (3 << 12);
+
+        VkPhysicalDeviceVulkan11Features vk11_features{};
+        vk11_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+        vk11_features.shaderDrawParameters = 1;
+        vk_options.feature_list = &vk11_features;
 
         SDL_PropertiesID _props = SDL_CreateProperties();
         SDL_SetPointerProperty(_props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_OPTIONS_POINTER, &vk_options);
@@ -66,8 +94,11 @@ namespace N::Graphics {
 
         m_camera.setPos({0, 0, -3.0f});
         m_camera.setTarget({0, 0, 0});
+        m_camera.setFOV(90.0f);
 
         SDL_SetWindowRelativeMouseMode(m_window, true);
+
+        InitSamplers();
     }
 
     bool Graphics::Tick() {
@@ -81,6 +112,10 @@ namespace N::Graphics {
                 // Resize gBuffer
                 DestroyGBuffer();
                 InitGBuffer();
+            } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_LEFT) {
+                SDL_SetWindowRelativeMouseMode(m_window, true);
+                // printf("Relative mouse mode on\n");
+                // SDL_SetWindowRelativeMouseMode(m_window, true);
             }
         }
         float now = (float)SDL_GetTicks() / 1000.0f;
@@ -110,9 +145,15 @@ namespace N::Graphics {
 
             SDL_GPUDepthStencilTargetInfo depth_target{};
             depth_target.texture         = m_gbuffer.depth;
-            depth_target.clear_depth     = 1.0f;
+            depth_target.clear_depth     = 0.0f;
             depth_target.load_op         = SDL_GPU_LOADOP_CLEAR;
             depth_target.store_op        = SDL_GPU_STOREOP_STORE;
+            // depth_target.clear_depth = 0.1f;
+            // depth_target.cycle           = true;
+
+            //
+            // --- GBuffer Pass ---
+            //
 
             SDL_GPURenderPass* geo_pass = SDL_BeginGPURenderPass(cmd, geo_targets, 2, &depth_target);
 
@@ -122,26 +163,52 @@ namespace N::Graphics {
             CameraUBO ubo = m_camera.getUBO();
             SDL_PushGPUVertexUniformData(cmd, 0, &ubo, sizeof(CameraUBO));
 
+            for (auto &ptr : m_objects) {
+                ObjPC pc = ptr->getObjPC();
+                SDL_PushGPUVertexUniformData(cmd, 1, &pc, sizeof(ObjPC));
+                ptr->Draw(geo_pass);
+            }
+
+            // Now draw the box
             SDL_GPUBufferBinding vbind{.buffer = m_vbuf, .offset = 0};
             SDL_BindGPUVertexBuffers(geo_pass, 0, &vbind, 1);
 
             SDL_GPUBufferBinding ibind{.buffer = m_ibuf, .offset = 0};
-            SDL_BindGPUIndexBuffer(geo_pass, &ibind, SDL_GPU_INDEXELEMENTSIZE_16BIT);
+            SDL_BindGPUIndexBuffer(geo_pass, &ibind, SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
+            // SDL_DrawGPUIndexedPrimitives(geo_pass, 36, 1, 0, 0, 0);
 
-            SDL_DrawGPUIndexedPrimitives(geo_pass, 6, 1, 0, 0, 0);
             SDL_EndGPURenderPass(geo_pass);
 
-            // --- Debug blit albedo → swapchain ---
-            SDL_GPUBlitInfo blit{};
-            blit.source.texture      = m_gbuffer.albedo;
-            blit.source.w            = m_gbuffer.width;
-            blit.source.h            = m_gbuffer.height;
-            blit.destination.texture = swapchain_tex;
-            blit.destination.w       = m_gbuffer.width;
-            blit.destination.h       = m_gbuffer.height;
-            blit.load_op             = SDL_GPU_LOADOP_CLEAR;
-            SDL_BlitGPUTexture(cmd, &blit);
+            //
+            // --- Light pass ---
+            //
+
+            SDL_GPUColorTargetInfo light_target{};
+            light_target.texture = swapchain_tex;
+            light_target.load_op = SDL_GPU_LOADOP_CLEAR;
+            light_target.store_op = SDL_GPU_STOREOP_STORE;
+            light_target.clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
+
+            SDL_GPURenderPass* light_pass = SDL_BeginGPURenderPass(cmd, &light_target, 1, NULL);
+            SDL_BindGPUGraphicsPipeline(light_pass, m_lightPipeline);
+
+            SDL_GPUTextureSamplerBinding albedoBind = {m_gbuffer.albedo, m_samplers.linear};
+            SDL_BindGPUFragmentSamplers(light_pass, 0, &albedoBind, 1);
+
+            SDL_GPUTextureSamplerBinding normalBind = {m_gbuffer.normals, m_samplers.linear};
+            SDL_BindGPUFragmentSamplers(light_pass, 1, &normalBind, 1);
+
+            DirLight light{};
+            light.direction = glm::vec3(0.5f, -1.0f, 0.3f);
+            light.intensity = 0.5f;
+            light.color = glm::vec3(1.0f);
+            SDL_PushGPUFragmentUniformData(cmd, 0, &light, sizeof(DirLight));
+
+            SDL_DrawGPUPrimitives(light_pass, 3, 1, 0, 0);
+
+            SDL_EndGPURenderPass(light_pass);
+
         }
 
         SDL_SubmitGPUCommandBuffer(cmd);
@@ -151,7 +218,21 @@ namespace N::Graphics {
 
     void Graphics::Shutdown() {
 
+
+
+        // First destroy the Textures
         DestroyGBuffer();
+
+
+
+        for (auto &ptr : m_objects) {
+            ptr->Shutdown();
+            
+        }
+
+        SDL_ReleaseGPUSampler(m_device, m_samplers.linear);
+        SDL_ReleaseGPUSampler(m_device, m_samplers.nearest);
+        SDL_ReleaseGPUSampler(m_device, m_samplers.shadow);
 
         // Buffers
         SDL_ReleaseGPUBuffer(m_device, m_vbuf);
@@ -160,6 +241,7 @@ namespace N::Graphics {
         
 
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_geometryPipeline);
+        SDL_ReleaseGPUGraphicsPipeline(m_device, m_lightPipeline);
         SDL_ReleaseWindowFromGPUDevice(m_device, m_window);
 
         SDL_DestroyWindow(m_window);

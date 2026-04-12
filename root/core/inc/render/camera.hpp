@@ -14,7 +14,7 @@ namespace N::Graphics {
 
     class Camera {
         public:
-            Camera() : pos(0,0,0), target(0,0,1), fov(45.0f), near(0.1f), far(1000.0f) {}
+            Camera() : pos(0,0,0), target(0,0,1), fov(45.0f), near(0.1f), far(300.0f) {}
 
             Camera(glm::vec3 pos, glm::vec3 target, float fov, float near, float far)
                 : pos(pos), target(target), fov(fov), near(near), far(far) {}
@@ -23,11 +23,19 @@ namespace N::Graphics {
 
         public:
             void update(float aspectRatio) {
-                ubo.view = glm::lookAt(pos, target, glm::vec3(0,1,0));
-                ubo.proj = glm::perspectiveRH_ZO(glm::radians(fov), aspectRatio, near, far);
-                ubo.proj[1][1] *= -1; // For vulkan
+                ubo.view = glm::lookAt(pos, target, glm::vec3(0, 1, 0));
+
+                // Infinite reversed-Z projection
+                float f = 1.0f / tan(glm::radians(fov) * 0.5f);
+                ubo.proj = glm::mat4(0.0f);
+                ubo.proj[0][0] = f / aspectRatio;
+                ubo.proj[1][1] = -f;              // Vulkan Y-flip baked in
+                ubo.proj[2][2] = 0.0f;
+                ubo.proj[2][3] = -1.0f;
+                ubo.proj[3][2] = near;            // near plane maps to Z=1, infinity maps to Z=0
+
                 ubo.viewProj = ubo.proj * ubo.view;
-            };
+            }
 
             CameraUBO getUBO() { return ubo; }
 
