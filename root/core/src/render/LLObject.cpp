@@ -3,11 +3,31 @@
 #include "render/obj.hpp"
 #include <SDL3/SDL_gpu.h>
 #include <glm/gtc/type_ptr.hpp>
+#include "stb/stb_image.h"
 
 namespace N::Graphics {
 
     bool Object::LoadPBRTextures(cgltf_data* data) {
+        LOG_INFO("  - Loading PBR textures");
         size_t meshIdx = 0;
+
+        auto loadTex = [&](Texture& tex, cgltf_image* image) {
+            int w, h, ch;
+            stbi_uc* pixels = nullptr;
+
+            if (image->buffer_view) {
+                void* data = (char*)image->buffer_view->buffer->data + image->buffer_view->offset;
+                pixels = stbi_load_from_memory((stbi_uc*)data, (int)image->buffer_view->size, &w, &h, &ch, 4);
+            } else if (image->uri) {
+                pixels = stbi_load(image->uri, &w, &h, &ch, 4);
+            }
+
+            if (!pixels) return;
+
+            tex.Init(m_device, w, h);
+            tex.Upload(m_device, pixels);
+            stbi_image_free(pixels);
+        };
 
         for (size_t mi = 0; mi < data->meshes_count; mi++) {
 
@@ -22,21 +42,23 @@ namespace N::Graphics {
                 Mesh& mesh = m_meshes[meshIdx];
 
                 if (mat->pbr_metallic_roughness.base_color_texture.texture)
-                    mesh.textures.albedo.LoadFromCgltf(m_device, mat->pbr_metallic_roughness.base_color_texture.texture->image);
+                    loadTex(mesh.textures.albedo, mat->pbr_metallic_roughness.base_color_texture.texture->image);
 
                 if (mat->normal_texture.texture)
-                    mesh.textures.normal.LoadFromCgltf(m_device, mat->normal_texture.texture->image);
+                    loadTex(mesh.textures.normal, mat->normal_texture.texture->image);
 
                 if (mat->pbr_metallic_roughness.metallic_roughness_texture.texture)
-                    mesh.textures.metalRough.LoadFromCgltf(m_device, mat->pbr_metallic_roughness.metallic_roughness_texture.texture->image);
+                    loadTex(mesh.textures.metalRough, mat->pbr_metallic_roughness.metallic_roughness_texture.texture->image);
 
                 if (mat->emissive_texture.texture)
-                    mesh.textures.emissive.LoadFromCgltf(m_device, mat->emissive_texture.texture->image);
+                    loadTex(mesh.textures.emissive, mat->emissive_texture.texture->image);
                 
                 meshIdx++;
             }
 
         }
+
+        LOG_INFO("  - PBR textures loaded");
 
         return true;
     }

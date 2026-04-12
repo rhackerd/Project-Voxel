@@ -1,13 +1,16 @@
 #pragma once
-#include "cgltf.h"
-
+#include "types.h"
 #include <SDL3/SDL_gpu.h>
 namespace N::Graphics {
     class Texture {
         public:
-            bool LoadFromCgltf(SDL_GPUDevice* device, cgltf_image* image);
 
-            bool LoadFromFile(SDL_GPUDevice* device, const char* path) {};
+            void Init(SDL_GPUDevice* device, u32 w, u32 h);
+
+            
+            bool LoadFromFile(SDL_GPUDevice* device, const char* path);
+                void Upload(SDL_GPUDevice* device, const void* data);
+
 
             void Destroy(SDL_GPUDevice* device) {
                 if (m_texture) {
