@@ -9,26 +9,6 @@ project('template_meson', ['c', 'cpp'],
 
 # first slang
 
-slangc = find_program('slangc')
-
-vert_spv = custom_target('rect.vert.spv',
-  input  : 'shaders/rect.slang',
-  output : 'rect.vert.spv',
-  command : [slangc, '@INPUT@', '-entry', 'vertMain', '-stage', 'vertex', '-target', 'spirv', '-o', '@OUTPUT@']
-)
-
-frag_spv = custom_target('rect.frag.spv',
-  input  : 'shaders/rect.slang',
-  output : 'rect.frag.spv',
-  command : [slangc, '@INPUT@', '-entry', 'fragMain', '-stage', 'fragment', '-target', 'spirv', '-o', '@OUTPUT@']
-)
-
-fmt_dep = dependency('fmt', fallback : ['fmt', 'fmt_dep'])
-sdl3_dep = dependency('SDL3', fallback : ['sdl3', 'sdl3_dep'])
-glm_dep = dependency('glm', fallback : ['glm', 'glm_dep'])
-stb_dep = declare_dependency(
-    include_directories: include_directories('third_party/stb')
-)
 
 # ── Core ──────────────────────────────────────────────────────────────────────
 core_inc = include_directories('root/core/inc')

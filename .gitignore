@@ -11,9 +11,6 @@ subprojects/glm-*/
 subprojects/SDL3-*/
 *.wraplock
 
-# Compiled shaders
-*.spv
-
 # Slang intermediate
 *.slang-generated
 *.slang.spv
