@@ -45,6 +45,7 @@ namespace N::Graphics {
         uint32_t indexCount = 0;
         uint32_t vertexOffset = 0;
         PBRTex textures{};
+        glm::mat4 nodeTransform = glm::mat4(1.0f);
     };
 
     class Object {
@@ -58,7 +59,7 @@ namespace N::Graphics {
     void Init();
         void CreateModelBuffers(size_t vert_num, size_t ind_num);
 
-    void Draw(SDL_GPURenderPass* pass);
+    void Draw(SDL_GPURenderPass* pass, SDL_GPUCommandBuffer* cmd);
 
     void Shutdown();
         void DestroyModelBuffers();
@@ -71,13 +72,19 @@ namespace N::Graphics {
         void GenerateTangents(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 
     public:
-        ObjPC getObjPC() const {
+
+        // TODO: Later move these into a .cpp file
+        glm::mat4 getLocalTransform() const {
             glm::mat4 t = glm::translate(glm::mat4(1.0f), m_position);
             glm::mat4 r = glm::rotate(glm::mat4(1.0f), glm::radians(m_rotation.y), {0,1,0});
-                    r = glm::rotate(r, glm::radians(m_rotation.x), {1,0,0});
-                    r = glm::rotate(r, glm::radians(m_rotation.z), {0,0,1});
+                        r = glm::rotate(r, glm::radians(m_rotation.x), {1,0,0});
+                        r = glm::rotate(r, glm::radians(m_rotation.z), {0,0,1});
             glm::mat4 s = glm::scale(glm::mat4(1.0f), m_scale);
-            glm::mat4 model = t * r * s * m_baseTransform;
+            return t * r * s;
+        }
+
+        ObjPC getMeshPC(const Mesh& mesh) const {
+            glm::mat4 model = getLocalTransform() * mesh.nodeTransform;
             glm::mat4 normalMat = glm::mat4(glm::transpose(glm::inverse(glm::mat3(model))));
             return { model, normalMat };
         }
@@ -111,9 +118,5 @@ namespace N::Graphics {
         Samplers m_samplers;
 
         SDL_GPUTexture* m_fallbackTex;
-
-        glm::mat4 m_baseTransform;
-
-        // std::vector<std::pair<Model, Texture>> m_meshes{};
     };
 };

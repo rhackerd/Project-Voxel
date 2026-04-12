@@ -7,16 +7,19 @@
 namespace N::Graphics {
 
     bool Object::LoadPBRTextures(cgltf_data* data) {
+        size_t meshIdx = 0;
+
         for (size_t mi = 0; mi < data->meshes_count; mi++) {
+
             cgltf_mesh& cgmesh = data->meshes[mi];
 
             for (size_t pi = 0; pi < cgmesh.primitives_count; pi++) {
                 cgltf_primitive& prim = cgmesh.primitives[pi];
                 cgltf_material* mat = prim.material;
 
-                if (!mat || pi >= m_meshes.size()) continue;
+                if (!mat || meshIdx >= m_meshes.size()) {meshIdx++; continue;}
 
-                Mesh& mesh = m_meshes[pi];
+                Mesh& mesh = m_meshes[meshIdx];
 
                 if (mat->pbr_metallic_roughness.base_color_texture.texture)
                     mesh.textures.albedo.LoadFromCgltf(m_device, mat->pbr_metallic_roughness.base_color_texture.texture->image);
@@ -29,8 +32,12 @@ namespace N::Graphics {
 
                 if (mat->emissive_texture.texture)
                     mesh.textures.emissive.LoadFromCgltf(m_device, mat->emissive_texture.texture->image);
+                
+                meshIdx++;
             }
+
         }
+
         return true;
     }
     
@@ -85,8 +92,6 @@ namespace N::Graphics {
         cgltf_float local[16];
         cgltf_node_transform_local(node, local);
 
-        m_baseTransform = glm::make_mat4(local);
-
         glm::mat4 transform = glm::make_mat4(local);
         glm::mat3 normalMat = glm::transpose(glm::inverse(glm::mat3(transform)));
 
@@ -129,15 +134,13 @@ namespace N::Graphics {
 
                 float p[3] = {};
                 cgltf_accessor_read_float(pos_acc, i, p, 3);
-                glm::vec4 wp = transform * glm::vec4(p[0], p[1], p[2], 1.0f);
-                v.position = glm::vec3(wp);
+
                 v.position = glm::vec3(p[0], p[1], p[2]);
 
                 if (norm_acc) {
                     float nm[3] = {};
                     cgltf_accessor_read_float(norm_acc, i, nm, 3);
-                    // v.normal = glm::normalize(normalMat * glm::vec3(nm[0], nm[1], nm[2]));
-                    v.normal = glm::vec3(nm[0], nm[1], nm[2]);
+                    v.normal = glm::normalize(normalMat * glm::vec3(nm[0], nm[1], nm[2]));
                 }
 
                 if (tan_acc) {
@@ -158,6 +161,7 @@ namespace N::Graphics {
             mesh.indexOffset  = index_offset;
             mesh.indexCount   = (uint32_t)idx_acc->count;
             mesh.vertexOffset = vertex_offset;
+            mesh.nodeTransform = glm::make_mat4(local);
             m_meshes.push_back(mesh);
             
         }

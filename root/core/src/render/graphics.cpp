@@ -164,10 +164,9 @@ namespace N::Graphics {
             SDL_PushGPUVertexUniformData(cmd, 0, &ubo, sizeof(CameraUBO));
 
             for (auto &ptr : m_objects) {
-                ObjPC pc = ptr->getObjPC();
-                SDL_PushGPUVertexUniformData(cmd, 1, &pc, sizeof(ObjPC));
-                ptr->Draw(geo_pass);
+                ptr->Draw(geo_pass, cmd);
             }
+            
 
             // Now draw the box
             SDL_GPUBufferBinding vbind{.buffer = m_vbuf, .offset = 0};

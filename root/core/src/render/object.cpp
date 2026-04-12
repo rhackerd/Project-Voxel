@@ -113,14 +113,19 @@ namespace N::Graphics {
     }
 
 
-    void Object::Draw(SDL_GPURenderPass* pass) {
+    void Object::Draw(SDL_GPURenderPass* pass, SDL_GPUCommandBuffer* cmd) {
         SDL_GPUBufferBinding vbind{.buffer = model.vbuf, .offset = 0};
         SDL_BindGPUVertexBuffers(pass, 0, &vbind, 1);
 
         SDL_GPUBufferBinding ibind{.buffer = model.ibuf, .offset = 0};
         SDL_BindGPUIndexBuffer(pass, &ibind, SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
+
         for (auto& mesh : m_meshes) {
+
+            ObjPC pc = getMeshPC(mesh);
+            SDL_PushGPUVertexUniformData(cmd, 1, &pc, sizeof(ObjPC));
+
             SDL_GPUTextureSamplerBinding albedoBind = {
                 mesh.textures.albedo.IsValid() ? mesh.textures.albedo.Get() : m_fallbackTex,
                 m_samplers.linear

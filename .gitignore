@@ -9,6 +9,7 @@ subprojects/packagecache/
 subprojects/fmt-*/
 subprojects/glm-*/
 subprojects/SDL3-*/
+*.wraplock
 
 # Compiled shaders
 *.spv
