@@ -1,6 +1,7 @@
 #include "render/graphics.hpp"
 #include "log/log.hpp"
 #include "render/camera.hpp"
+#include "render/context.hpp"
 #include "render/obj.hpp"
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_events.h>
@@ -41,46 +42,13 @@ namespace N::Graphics {
             return;
         }
 
-        // --- Window ----
-
-        m_window = SDL_CreateWindow("Nova Engine", 800, 600, SDL_WINDOW_RESIZABLE);
-        if (!m_window) {
-            NERROR("Failed to create window: {}", SDL_GetError());
+        if (m_context.Init() == false) {
+            NERROR("Failed to initiate Context");
             return;
         }
 
-        // --- GPU ----
-
-        SDL_GPUVulkanOptions vk_options{};
-        vk_options.vulkan_api_version = (1 << 22) | (3 << 12);
-
-        VkPhysicalDeviceVulkan11Features vk11_features{};
-        vk11_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-        vk11_features.shaderDrawParameters = 1;
-        vk_options.feature_list = &vk11_features;
-
-        SDL_PropertiesID _props = SDL_CreateProperties();
-        SDL_SetPointerProperty(_props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_OPTIONS_POINTER, &vk_options);
-        SDL_SetBooleanProperty(_props, SDL_PROP_GPU_DEVICE_CREATE_DEBUGMODE_BOOLEAN, true);
-        SDL_SetBooleanProperty(_props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN, true);
-
-        m_device = SDL_CreateGPUDeviceWithProperties(_props);
-        SDL_DestroyProperties(_props);
-
-        if (!m_device) {
-            NERROR("Failed to create GPU Device: {}", SDL_GetError());
-            return;
-        }
-
-        NINFO("Create GPU Device");
-        
-        // ---- GPU INFO ----
-
-        NINFO("Getting device properties: ");
-        SDL_PropertiesID props = SDL_GetGPUDeviceProperties(m_device);
-        const char* gpu_name = SDL_GetStringProperty(props, SDL_PROP_GPU_DEVICE_NAME_STRING, "unknown device");
-    
-        NINFO("   -> Device: {} ({})", gpu_name, SDL_GetGPUDeviceDriver(m_device));
+        m_device = m_context.GetDevice();
+        m_window = m_context.GetWindow();
 
         // ---- GPU <=> Windiw -----
         SDL_ClaimWindowForGPUDevice(m_device, m_window);
@@ -97,8 +65,6 @@ namespace N::Graphics {
         m_camera.setFOV(90.0f);
 
         SDL_SetWindowRelativeMouseMode(m_window, true);
-
-        InitSamplers();
     }
 
     bool Graphics::Tick() {
@@ -166,16 +132,6 @@ namespace N::Graphics {
             for (auto &ptr : m_objects) {
                 ptr->Draw(geo_pass, cmd);
             }
-            
-
-            // Now draw the box
-            SDL_GPUBufferBinding vbind{.buffer = m_vbuf, .offset = 0};
-            SDL_BindGPUVertexBuffers(geo_pass, 0, &vbind, 1);
-
-            SDL_GPUBufferBinding ibind{.buffer = m_ibuf, .offset = 0};
-            SDL_BindGPUIndexBuffer(geo_pass, &ibind, SDL_GPU_INDEXELEMENTSIZE_32BIT);
-
-            // SDL_DrawGPUIndexedPrimitives(geo_pass, 36, 1, 0, 0, 0);
 
             SDL_EndGPURenderPass(geo_pass);
 
@@ -192,10 +148,10 @@ namespace N::Graphics {
             SDL_GPURenderPass* light_pass = SDL_BeginGPURenderPass(cmd, &light_target, 1, NULL);
             SDL_BindGPUGraphicsPipeline(light_pass, m_lightPipeline);
 
-            SDL_GPUTextureSamplerBinding albedoBind = {m_gbuffer.albedo, m_samplers.linear};
+            SDL_GPUTextureSamplerBinding albedoBind = {m_gbuffer.albedo, m_context.GetSamplers().linear};
             SDL_BindGPUFragmentSamplers(light_pass, 0, &albedoBind, 1);
 
-            SDL_GPUTextureSamplerBinding normalBind = {m_gbuffer.normals, m_samplers.linear};
+            SDL_GPUTextureSamplerBinding normalBind = {m_gbuffer.normals, m_context.GetSamplers().linear};
             SDL_BindGPUFragmentSamplers(light_pass, 1, &normalBind, 1);
 
             DirLight light{};
@@ -217,7 +173,7 @@ namespace N::Graphics {
 
     void Graphics::Shutdown() {
 
-
+        
 
         // First destroy the Textures
         DestroyGBuffer();
@@ -229,26 +185,16 @@ namespace N::Graphics {
             
         }
 
-        SDL_ReleaseGPUSampler(m_device, m_samplers.linear);
-        SDL_ReleaseGPUSampler(m_device, m_samplers.nearest);
-        SDL_ReleaseGPUSampler(m_device, m_samplers.shadow);
-
-        // Buffers
-        SDL_ReleaseGPUBuffer(m_device, m_vbuf);
-        SDL_ReleaseGPUBuffer(m_device, m_ibuf);
-
         
 
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_geometryPipeline);
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_lightPipeline);
-        SDL_ReleaseWindowFromGPUDevice(m_device, m_window);
 
-        SDL_DestroyWindow(m_window);
+
         NINFO("Destroy Window");
 
         
-
-        SDL_DestroyGPUDevice(m_device);
+        m_context.Shutdown();
         NINFO("Destroy GPU Device");
         NINFO("Goodbye from Graphics");
     }

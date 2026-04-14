@@ -8,6 +8,7 @@
 #include <vector>
 #include "render/cgltf.h"
 #include "mesh.hpp"
+#include "render/context.hpp"
 #include "render/core.hpp"
 #include "render/texture.hpp"
 

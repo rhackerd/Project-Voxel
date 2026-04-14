@@ -1,4 +1,4 @@
-project('template_meson', ['c', 'cpp'],
+project('project-voxel', ['c', 'cpp'],
   version : '0.1.0',
   default_options : [
     'cpp_std=c++23',
@@ -9,7 +9,9 @@ project('template_meson', ['c', 'cpp'],
 
 # first slang
 
-
+fmt_dep = dependency('fmt', fallback : ['fmt', 'fmt_dep'])
+sdl3_dep = dependency('SDL3', fallback : ['sdl3', 'sdl3_dep'])
+glm_dep = dependency('glm', fallback : ['glm', 'glm_dep'])
 # ── Core ──────────────────────────────────────────────────────────────────────
 core_inc = include_directories('root/core/inc')
 
@@ -23,19 +25,20 @@ core_sources = files(
   'root/core/src/render/low/texture.cpp',
   'root/core/src/render/low/mesh.cpp',
   'root/core/src/render/low/mikktspace.c',
-  'root/core/src/render/low/objMTS.cpp'
+  'root/core/src/render/low/objMTS.cpp',
+  'root/core/src/render/ctx.cpp'
 )
 
 core_lib = static_library('core',
   sources : core_sources,
   include_directories : core_inc,
-  dependencies : [fmt_dep, sdl3_dep, glm_dep, stb_dep],
+  dependencies : [fmt_dep, sdl3_dep, glm_dep],
 )
 
 core_dep = declare_dependency(
   link_with : core_lib,
   include_directories : core_inc,
-  dependencies : [fmt_dep, sdl3_dep, glm_dep, stb_dep],
+  dependencies : [fmt_dep, sdl3_dep, glm_dep],
 )
 
 # ── App ───────────────────────────────────────────────────────────────────────

@@ -199,49 +199,6 @@ namespace N::Graphics {
 
         SDL_ReleaseGPUShader(m_device, vert);
         SDL_ReleaseGPUShader(m_device, frag);
-        
-        SDL_GPUBufferCreateInfo vbuf_info{};
-        vbuf_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
-        vbuf_info.size  = sizeof(box);
-        m_vbuf = SDL_CreateGPUBuffer(m_device, &vbuf_info);
-
-        SDL_GPUBufferCreateInfo ibuf_info{};
-        ibuf_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
-        ibuf_info.size  = sizeof(box_indices);
-        m_ibuf = SDL_CreateGPUBuffer(m_device, &ibuf_info);
-
-
-        SDL_GPUTransferBufferCreateInfo tbuf_info{};
-        tbuf_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-        tbuf_info.size  = sizeof(box) + sizeof(box_indices);
-        SDL_GPUTransferBuffer* tbuf = SDL_CreateGPUTransferBuffer(m_device, &tbuf_info);
-
-        void* map = SDL_MapGPUTransferBuffer(m_device, tbuf, false);
-        memcpy(map, box, sizeof(box));
-        memcpy((uint8_t*)map + sizeof(box), box_indices, sizeof(box_indices));
-        SDL_UnmapGPUTransferBuffer(m_device, tbuf);
-
-        SDL_GPUCommandBuffer* upload_cmd = SDL_AcquireGPUCommandBuffer(m_device);
-        SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(upload_cmd);
-
-        SDL_GPUTransferBufferLocation src{};
-        SDL_GPUBufferRegion dst{};
-
-        src.transfer_buffer = tbuf;
-        src.offset = 0;
-        dst.buffer = m_vbuf;
-        dst.offset = 0;
-        dst.size   = sizeof(box);
-        SDL_UploadToGPUBuffer(copy, &src, &dst, false);
-
-        src.offset = sizeof(box);
-        dst.buffer = m_ibuf;
-        dst.size   = sizeof(box_indices);
-        SDL_UploadToGPUBuffer(copy, &src, &dst, false);
-
-        SDL_EndGPUCopyPass(copy);
-        SDL_SubmitGPUCommandBuffer(upload_cmd);
-        SDL_ReleaseGPUTransferBuffer(m_device, tbuf);
     };
 
     void Graphics::InitPLight() {
@@ -319,7 +276,7 @@ namespace N::Graphics {
     }
 
     Object* Graphics::AddObject() {
-        auto& ptr = m_objects.emplace_back(std::make_unique<Object>(m_device, m_samplers));
+        auto& ptr = m_objects.emplace_back(std::make_unique<Object>(m_device, m_context.GetSamplers()));
         ptr->Init();
         return ptr.get();
     }
@@ -328,35 +285,6 @@ namespace N::Graphics {
         std::erase_if(m_objects, [obj](const auto& ptr) {
             return ptr.get() == obj;
         });
-    }
-
-
-    void Graphics::InitSamplers() {
-        SDL_GPUSamplerCreateInfo info{};
-
-        // Linear repeat — for PBR textures
-        info.min_filter     = SDL_GPU_FILTER_LINEAR;
-        info.mag_filter     = SDL_GPU_FILTER_LINEAR;
-        info.mipmap_mode    = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
-        info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-        info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-        m_samplers.linear   = SDL_CreateGPUSampler(m_device, &info);
-
-        // Nearest repeat — pixel art / UI
-        info.min_filter     = SDL_GPU_FILTER_NEAREST;
-        info.mag_filter     = SDL_GPU_FILTER_NEAREST;
-        info.mipmap_mode    = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST;
-        m_samplers.nearest  = SDL_CreateGPUSampler(m_device, &info);
-
-        // Shadow — clamp to border, for shadow maps later
-        info.min_filter     = SDL_GPU_FILTER_LINEAR;
-        info.mag_filter     = SDL_GPU_FILTER_LINEAR;
-        info.mipmap_mode    = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
-        info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-        info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-        m_samplers.shadow   = SDL_CreateGPUSampler(m_device, &info);
-
-        LOG_INFO("Loaded samplers");
     }
     
 };
