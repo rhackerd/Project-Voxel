@@ -23,6 +23,7 @@ namespace N::Graphics {
 
         public:
             void update(float aspectRatio) {
+                if (!dirty) return;
                 ubo.view = glm::lookAt(pos, target, glm::vec3(0, 1, 0));
 
                 // Infinite reversed-Z projection

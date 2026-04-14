@@ -137,7 +137,6 @@ namespace N::Graphics {
                 m_samplers.linear
             };
             SDL_BindGPUFragmentSamplers(pass, 1, &normalBind, 1);
-            SDL_BindGPUFragmentSamplers(pass, 1, &normalBind, 1);
             SDL_DrawGPUIndexedPrimitives(pass, mesh.indexCount, 1, mesh.indexOffset, 0, 0);
 
             // FIX: Binding 1 does not recieve it's own sampler. Works on my machine though
